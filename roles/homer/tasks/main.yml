@@ -1,0 +1,55 @@
+---
+
+- block:
+
+    - name: ensure homer group exits
+      ansible.builtin.group:
+        name: homer
+
+    - name: ensure homer user exists and has restrictive settings
+      user:
+        name: homer
+        groups: homer
+        password: "*"
+        home: "{{ homer_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: check if homer user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/homer"
+      register: homer_user_lingering
+
+    - name: enable linger for homer user
+      ansible.builtin.command: "loginctl enable-linger homer"
+      when: not homer_user_lingering.stat.exists
+
+  become: "{{ homer_become }}"
+  become_user: "{{ homer_become_root_user }}"
+
+- block:
+
+    - name: ensure the homer container exist, stopped
+      containers.podman.podman_container:
+        name: homer
+        image: docker.io/b4bz/homer:latest
+        ports:
+          - "{{ homer_host_ip }}:{{ homer_host_port }}:8080"
+        volume:
+          - "homer_data:/www/assets"
+        state: stopped
+
+    - name: systemd unit files for homer container must exist
+      containers.podman.podman_generate_systemd:
+        name: homer
+        dest: ~/.config/systemd/user/
+
+    - name: homer container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: container-homer
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: "{{ homer_become }}"
+  become_user: "{{ homer_become_user }}"

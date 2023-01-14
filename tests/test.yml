@@ -1,0 +1,19 @@
+---
+- name: generic tests for all the roles
+  hosts: all
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    homer_become_user: homer
+
+  pre_tasks:
+    - name: ensure podman is installed
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl
+        update_cache: true
+      become: true
+
+  roles:
+    - ../roles/homer

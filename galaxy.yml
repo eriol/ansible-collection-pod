@@ -1,0 +1,16 @@
+---
+namespace: eriol
+name: pod
+version: 0.0.1
+readme: README.md
+authors:
+  - Daniele Tricoli <eriol@mornie.org>
+description: Ansible collection to manage services with podman.
+license:
+  - BSD-3-Clause
+tags:
+  - linux
+  - podman
+  - containers
+  - server
+  - collection
