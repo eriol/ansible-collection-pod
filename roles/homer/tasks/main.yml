@@ -24,7 +24,7 @@
       when: not homer_user_lingering.stat.exists
 
   become: "{{ homer_become }}"
-  become_user: "{{ homer_become_root_user }}"
+  become_user: "{{ homer_become_user }}"
 
 - block:
 
@@ -49,7 +49,6 @@
         daemon_reload: true
         state: started
         enabled: true
-        scope: user
 
-  become: "{{ homer_become }}"
-  become_user: "{{ homer_become_user }}"
+  become: true
+  become_user: homer

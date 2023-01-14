@@ -1,9 +1,7 @@
 ---
 homer_become: true
-homer_become_user: "{{ undef(hint='You must specify container's user') }}"
-homer_become_root_user: root
+homer_become_user: root
 
 homer_dir: /srv/homer
 homer_host_ip: 127.0.0.1
 homer_host_port: 8080
-
