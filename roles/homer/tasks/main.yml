@@ -49,6 +49,7 @@
         daemon_reload: true
         state: started
         enabled: true
+        scope: user
 
   become: true
   become_user: homer
