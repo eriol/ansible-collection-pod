@@ -8,10 +8,6 @@ authors:
 description: Ansible collection to manage services with podman.
 license:
   - BSD-3-Clause
-dependencies:
-  - name: https://github.com/containers/ansible-podman-collections
-    type: git
-    version: 877581e31f228217d92de5c07dc385d98d9a4add
 tags:
   - linux
   - podman
