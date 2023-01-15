@@ -1,9 +1,9 @@
-# homer
+# changedetection
 
 ## Example playbook
 
 ```yaml
 - hosts: my-server
   roles:
-    - eriol.pod.homer
+    - eriol.pod.changedetection
 ```
