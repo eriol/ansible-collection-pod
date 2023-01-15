@@ -1,0 +1,63 @@
+---
+
+- block:
+
+    - name: install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: ensure vaultwarden group exits
+      ansible.builtin.group:
+        name: vaultwarden
+
+    - name: ensure vaultwarden user exists and has restrictive settings
+      ansible.builtin.user:
+        name: vaultwarden
+        groups: vaultwarden
+        password: "*"
+        home: "{{ vaultwarden_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: check if vaultwarden user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/vaultwarden"
+      register: vaultwarden_user_lingering
+
+    - name: enable linger for vaultwarden user
+      ansible.builtin.command: "loginctl enable-linger vaultwarden"
+      when: not vaultwarden_user_lingering.stat.exists
+
+  become: "{{ vaultwarden_become }}"
+  become_user: "{{ vaultwarden_become_user }}"
+
+- block:
+
+    - name: ensure the vaultwarden container exist, stopped
+      containers.podman.podman_container:
+        name: vaultwarden
+        image: "docker.io/dvaultwarden/server:{{ vaultwarden_tag }}"
+        ports:
+          - "{{ vaultwarden_host_ip }}:{{ vaultwarden_host_port }}:80"
+        volume:
+          - "vaultwarden-data:/data"
+        state: stopped
+
+    - name: systemd unit files for vaultwarden container must exist
+      containers.podman.podman_generate_systemd:
+        name: vaultwarden
+        dest: ~/.config/systemd/user/
+
+    - name: vaultwarden container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: container-vaultwarden
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: vaultwarden

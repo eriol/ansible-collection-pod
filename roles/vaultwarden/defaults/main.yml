@@ -1,0 +1,8 @@
+---
+vaultwarden_become: true
+vaultwarden_become_user: root
+
+vaultwarden_dir: /srv/vaultwarden
+vaultwarden_host_ip: 127.0.0.1
+vaultwarden_host_port: 8080
+vaultwarden_tag: latest
