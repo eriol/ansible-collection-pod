@@ -39,7 +39,7 @@
     - name: ensure the vaultwarden container exist, stopped
       containers.podman.podman_container:
         name: vaultwarden
-        image: "docker.io/dvaultwarden/server:{{ vaultwarden_tag }}"
+        image: "docker.io/vaultwarden/server:{{ vaultwarden_tag }}"
         ports:
           - "{{ vaultwarden_host_ip }}:{{ vaultwarden_host_port }}:80"
         volume:
