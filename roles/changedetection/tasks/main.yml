@@ -1,0 +1,63 @@
+---
+
+- block:
+
+    - name: install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: ensure changedetection group exits
+      ansible.builtin.group:
+        name: changedetection
+
+    - name: ensure changedetection user exists and has restrictive settings
+      ansible.builtin.user:
+        name: changedetection
+        groups: changedetection
+        password: "*"
+        home: "{{ changedetection_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: check if changedetection user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/changedetection"
+      register: changedetection_user_lingering
+
+    - name: enable linger for changedetection user
+      ansible.builtin.command: "loginctl enable-linger changedetection"
+      when: not changedetection_user_lingering.stat.exists
+
+  become: "{{ changedetection_become }}"
+  become_user: "{{ changedetection_become_user }}"
+
+- block:
+
+    - name: ensure the changedetection container exist, stopped
+      containers.podman.podman_container:
+        name: changedetection
+        image: "docker.io/dgtlmoon/changedetection.io:{{ changedetection_tag }}"
+        ports:
+          - "{{ changedetection_host_ip }}:{{ changedetection_host_port }}:5000"
+        volume:
+          - "changedetection-data:/datastore"
+        state: stopped
+
+    - name: systemd unit files for changedetection container must exist
+      containers.podman.podman_generate_systemd:
+        name: changedetection
+        dest: ~/.config/systemd/user/
+
+    - name: changedetection container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: container-changedetection
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: changedetection

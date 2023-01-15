@@ -1,0 +1,8 @@
+---
+changedetection_become: true
+changedetection_become_user: root
+
+changedetection_dir: /srv/changedetection
+changedetection_host_ip: 127.0.0.1
+changedetection_host_port: 5000
+changedetection_tag: latest

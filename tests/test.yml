@@ -4,7 +4,7 @@
 
   vars:
     ansible_python_interpreter: /usr/bin/python3
-    homer_become_user: homer
 
   roles:
     - ../roles/homer
+    - ../roles/changedetection
