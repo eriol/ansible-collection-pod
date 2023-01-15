@@ -2,12 +2,20 @@
 
 - block:
 
+    - name: install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
     - name: ensure homer group exits
       ansible.builtin.group:
         name: homer
 
     - name: ensure homer user exists and has restrictive settings
-      user:
+      ansible.builtin.user:
         name: homer
         groups: homer
         password: "*"
