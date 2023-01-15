@@ -1,0 +1,8 @@
+---
+nodered_become: true
+nodered_become_user: root
+
+nodered_dir: /srv/nodered
+nodered_host_ip: 127.0.0.1
+nodered_host_port: 1880
+nodered_tag: latest

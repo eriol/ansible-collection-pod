@@ -1,0 +1,63 @@
+---
+
+- block:
+
+    - name: install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: ensure nodered group exits
+      ansible.builtin.group:
+        name: nodered
+
+    - name: ensure nodered user exists and has restrictive settings
+      ansible.builtin.user:
+        name: nodered
+        groups: nodered
+        password: "*"
+        home: "{{ nodered_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: check if nodered user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/nodered"
+      register: nodered_user_lingering
+
+    - name: enable linger for nodered user
+      ansible.builtin.command: "loginctl enable-linger nodered"
+      when: not nodered_user_lingering.stat.exists
+
+  become: "{{ nodered_become }}"
+  become_user: "{{ nodered_become_user }}"
+
+- block:
+
+    - name: ensure the nodered container exist, stopped
+      containers.podman.podman_container:
+        name: nodered
+        image: "docker.io/nodered/node-red:{{ nodered_tag }}"
+        ports:
+          - "{{ nodered_host_ip }}:{{ nodered_host_port }}:1880"
+        volume:
+          - "nodered-data:/data"
+        state: stopped
+
+    - name: systemd unit files for nodered container must exist
+      containers.podman.podman_generate_systemd:
+        name: nodered
+        dest: ~/.config/systemd/user/
+
+    - name: nodered container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: container-nodered
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: nodered
