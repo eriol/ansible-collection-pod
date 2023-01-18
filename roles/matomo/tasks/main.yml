@@ -1,0 +1,106 @@
+---
+
+- block:
+
+    - name: install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: ensure matomo group exits
+      ansible.builtin.group:
+        name: matomo
+
+    - name: ensure matomo user exists and has restrictive settings
+      ansible.builtin.user:
+        name: matomo
+        groups: matomo
+        password: "*"
+        home: "{{ matomo_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: check if matomo user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/matomo"
+      register: matomo_user_lingering
+
+    - name: enable linger for matomo user
+      ansible.builtin.command: "loginctl enable-linger matomo"
+      when: not matomo_user_lingering.stat.exists
+
+  become: "{{ matomo_become }}"
+  become_user: "{{ matomo_become_user }}"
+
+- block:
+
+    - name: ensure the matomo pod exist
+      containers.podman.podman_pod:
+        name: matomo
+        state: created
+        ports:
+          - "{{ matomo_host_ip }}:{{ matomo_host_port }}:80"
+
+    - name: ensure the matomo database container exist, stopped
+      containers.podman.podman_container:
+        pod: matomo
+        name: matomo-db
+        image: "docker.io/mariadb:{{ matomo_database_tag }}"
+        env:
+          MARIADB_ROOT_PASSWORD: "{{ matomo_mariadb_root_password }}"
+          MARIADB_DATABASE: matomo
+          MARIADB_USER: matomo
+          MARIADB_PASSWORD: "{{ matomo_mariadb_password }}"
+          MATOMO_DATABASE_ADAPTER: mysql
+          MATOMO_DATABASE_TABLES_PREFIX: matomo_
+          MATOMO_DATABASE_USERNAME: matomo
+          MATOMO_DATABASE_PASSWORD: "{{ matomo_mariadb_password }}"
+          MATOMO_DATABASE_DBNAME: matomo
+          MARIADB_AUTO_UPGRADE: 1
+          MARIADB_INITDB_SKIP_TZINFO: 1
+        volume:
+          - "matomo-db:/var/lib/mysql"
+        state: stopped
+
+    - name: ensure the matomo app container exist, stopped
+      containers.podman.podman_container:
+        pod: matomo
+        name: matomo-app
+        image: "docker.io/matomo:{{ matomo_app_tag }}"
+        env:
+          MARIADB_ROOT_PASSWORD: secret
+          MARIADB_DATABASE: matomo
+          MARIADB_USER: matomo
+          MARIADB_PASSWORD: 1234
+          MATOMO_DATABASE_ADAPTER: mysql
+          MATOMO_DATABASE_TABLES_PREFIX: matomo_
+          MATOMO_DATABASE_USERNAME: matomo
+          MATOMO_DATABASE_PASSWORD: ""
+          MATOMO_DATABASE_DBNAME: matomo
+          MARIADB_AUTO_UPGRADE: 1
+          MARIADB_INITDB_SKIP_TZINFO: 1
+          MATOMO_DATABASE_HOST: matomo-db
+          PHP_MEMORY_LIMIT: 2048M
+        volume:
+          - "matomo-app:/var/www/html"
+        state: stopped
+        # requires:
+        #   - matomo-db
+
+    - name: systemd unit files for matomo container must exist
+      containers.podman.podman_generate_systemd:
+        name: matomo
+        dest: ~/.config/systemd/user/
+
+    - name: matomo container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: pod-matomo
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: matomo

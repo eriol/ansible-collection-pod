@@ -1,0 +1,12 @@
+---
+matomo_become: true
+matomo_become_user: root
+
+matomo_dir: /srv/matomo
+matomo_host_ip: 127.0.0.1
+matomo_host_port: 8080
+matomo_database_tag: latest
+matomo_app_tag: latest
+
+matomo_mariadb_root_password: "secret"
+matomo_mariadb_password: "secret"

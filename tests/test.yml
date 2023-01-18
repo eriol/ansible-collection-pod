@@ -8,3 +8,4 @@
   roles:
     - ../roles/homer
     - ../roles/changedetection
+    - ../roles/matomo
