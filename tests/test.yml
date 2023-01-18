@@ -6,6 +6,8 @@
     ansible_python_interpreter: /usr/bin/python3
 
   roles:
-    - ../roles/homer
     - ../roles/changedetection
+    - ../roles/homer
     - ../roles/matomo
+    - ../roles/nodered
+    - ../roles/vaultwarden
