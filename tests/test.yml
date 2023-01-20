@@ -4,9 +4,11 @@
 
   vars:
     ansible_python_interpreter: /usr/bin/python3
+    homeassistant_host_ip: 0.0.0.0
 
   roles:
     - ../roles/changedetection
+    - ../roles/homeassistant
     - ../roles/homer
     - ../roles/matomo
     - ../roles/nodered
