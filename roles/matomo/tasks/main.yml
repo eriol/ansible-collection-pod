@@ -89,12 +89,12 @@
         # requires:
         #   - matomo-db
 
-    - name: systemd unit files for matomo container must exist
+    - name: systemd unit files for matomo pod must exist
       containers.podman.podman_generate_systemd:
         name: matomo
         dest: ~/.config/systemd/user/
 
-    - name: matomo container must be started and enabled on systemd
+    - name: matomo pod must be started and enabled on systemd
       ansible.builtin.systemd:
         name: pod-matomo
         daemon_reload: true
