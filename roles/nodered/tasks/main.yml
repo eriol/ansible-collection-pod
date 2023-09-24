@@ -39,7 +39,7 @@
     - name: ensure the nodered container exist, stopped
       containers.podman.podman_container:
         name: nodered
-        image: "docker.io/nodered/node-red:{{ nodered_tag }}"
+        image: "quay.io/eriol/nodered:{{ nodered_tag }}"
         ports:
           - "{{ nodered_host_ip }}:{{ nodered_host_port }}:1880"
         volume:
