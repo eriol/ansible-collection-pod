@@ -1,0 +1,8 @@
+---
+yarr_become: true
+yarr_become_user: root
+
+yarr_dir: /srv/yarr
+yarr_host_ip: 127.0.0.1
+yarr_host_port: 7070
+yarr_tag: latest

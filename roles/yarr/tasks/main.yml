@@ -1,0 +1,63 @@
+---
+
+- block:
+
+    - name: install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: ensure yarr group exits
+      ansible.builtin.group:
+        name: yarr
+
+    - name: ensure yarr user exists and has restrictive settings
+      ansible.builtin.user:
+        name: yarr
+        group: yarr
+        password: "*"
+        home: "{{ yarr_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: check if yarr user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/yarr"
+      register: yarr_user_lingering
+
+    - name: enable linger for yarr user
+      ansible.builtin.command: "loginctl enable-linger yarr"
+      when: not yarr_user_lingering.stat.exists
+
+  become: "{{ yarr_become }}"
+  become_user: "{{ yarr_become_user }}"
+
+- block:
+
+    - name: ensure the yarr container exist, stopped
+      containers.podman.podman_container:
+        name: yarr
+        image: "quay.io/eriol/yarr:{{ yarr_tag }}"
+        ports:
+          - "{{ yarr_host_ip }}:{{ yarr_host_port }}:7070"
+        volume:
+          - "yarr-data:/data"
+        state: stopped
+
+    - name: systemd unit files for yarr container must exist
+      containers.podman.podman_generate_systemd:
+        name: yarr
+        dest: ~/.config/systemd/user/
+
+    - name: yarr container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: container-yarr
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: yarr
