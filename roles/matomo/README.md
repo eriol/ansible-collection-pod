@@ -5,5 +5,5 @@
 ```yaml
 - hosts: my-server
   roles:
-    - eriol.pod.nodered
+    - eriol.pod.matomo
 ```
