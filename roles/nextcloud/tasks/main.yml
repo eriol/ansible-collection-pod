@@ -1,0 +1,81 @@
+---
+
+- block:
+
+    - name: Install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure nextcloud group exits
+      ansible.builtin.group:
+        name: nextcloud
+
+    - name: Ensure nextcloud user exists and has restrictive settings
+      ansible.builtin.user:
+        name: nextcloud
+        groups: nextcloud
+        password: "*"
+        home: "{{ nextcloud_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: Check if nextcloud user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/nextcloud"
+      register: nextcloud_user_lingering
+
+    - name: Enable linger for nextcloud user
+      ansible.builtin.command: "loginctl enable-linger nextcloud"
+      when: not nextcloud_user_lingering.stat.exists
+
+  become: "{{ nextcloud_become }}"
+  become_user: "{{ nextcloud_become_user }}"
+
+- block:
+
+    - name: Ensure the nextcloud pod exist
+      containers.podman.podman_pod:
+        name: nextcloud
+        state: created
+        ports:
+          - "{{ nextcloud_host_ip }}:{{ nextcloud_host_port }}:80"
+
+    - name: Ensure the nextcloud database container exist, stopped
+      containers.podman.podman_container:
+        pod: nextcloud
+        name: nextcloud-db
+        image: "docker.io/postgres:{{ nextcloud_postgres_database_tag }}"
+        env:
+          POSTGRES_PASSWORD: "{{ nextcloud_postgres_root_password }}"
+          POSTGRES_DB: nextcloud
+        volume:
+          - "nextcloud-db:/var/lib/postgresql/data"
+        state: stopped
+
+    - name: Ensure the nextcloud container exist, stopped
+      containers.podman.podman_container:
+        pod: nextcloud
+        name: nextcloud-app
+        image: "docker.io/nextcloud:{{ nextcloud_tag }}"
+        volume:
+          - "nextcloud-data:/var/www/html"
+        state: stopped
+
+    - name: Ensure systemd unit files for nextcloud container exist
+      containers.podman.podman_generate_systemd:
+        name: nextcloud
+        dest: ~/.config/systemd/user/
+
+    - name: Ensure nextcloud pod is started and enabled on systemd
+      ansible.builtin.systemd:
+        name: pod-nextcloud
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: nextcloud

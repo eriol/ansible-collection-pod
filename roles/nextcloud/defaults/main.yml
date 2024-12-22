@@ -1,0 +1,11 @@
+---
+nextcloud_become: true
+nextcloud_become_user: root
+
+nextcloud_dir: /srv/nextcloud
+nextcloud_host_ip: 127.0.0.1
+nextcloud_host_port: 8080
+nextcloud_tag: latest
+
+nextcloud_postgres_database_tag: latest
+nextcloud_postgres_root_password: secret
