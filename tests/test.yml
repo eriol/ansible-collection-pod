@@ -1,10 +1,10 @@
 ---
-- name: generic tests for all the roles
+- name: Generic tests for all the roles
   hosts: all
 
   vars:
     ansible_python_interpreter: /usr/bin/python3
-    nextcloud_host_ip: 0.0.0.0
+    linkding_host_ip: 0.0.0.0
 
   roles:
     # - ../roles/changedetection
@@ -13,4 +13,5 @@
     # - ../roles/matomo
     # - ../roles/nodered
     # - ../roles/vaultwarden
-    - ../roles/nextcloud
+    # - ../roles/nextcloud
+    - ../roles/linkding

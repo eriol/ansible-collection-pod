@@ -1,0 +1,63 @@
+---
+
+- block:
+
+    - name: Install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure linkding group exits
+      ansible.builtin.group:
+        name: linkding
+
+    - name: Ensure linkding user exists and has restrictive settings
+      ansible.builtin.user:
+        name: linkding
+        groups: linkding
+        password: "*"
+        home: "{{ linkding_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: Check if linkding user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/linkding"
+      register: linkding_user_lingering
+
+    - name: Enable linger for linkding user
+      ansible.builtin.command: "loginctl enable-linger linkding"
+      when: not linkding_user_lingering.stat.exists
+
+  become: "{{ linkding_become }}"
+  become_user: "{{ linkding_become_user }}"
+
+- block:
+
+    - name: Ensure the linkding container exist, stopped
+      containers.podman.podman_container:
+        name: linkding
+        image: "docker.io/sissbruecker/linkding:{{ linkding_tag }}"
+        ports:
+          - "{{ linkding_host_ip }}:{{ linkding_host_port }}:9090"
+        volume:
+          - "linkding-data:/etc/linkding/data"
+        state: stopped
+
+    - name: Systemd unit files for linkding container must exist
+      containers.podman.podman_generate_systemd:
+        name: linkding
+        dest: ~/.config/systemd/user/
+
+    - name: Linkding container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: container-linkding
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: linkding

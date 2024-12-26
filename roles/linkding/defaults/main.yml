@@ -1,0 +1,8 @@
+---
+linkding_become: true
+linkding_become_user: root
+
+linkding_dir: /srv/linkding
+linkding_host_ip: 127.0.0.1
+linkding_host_port: 8080
+linkding_tag: latest
