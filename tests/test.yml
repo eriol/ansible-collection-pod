@@ -4,7 +4,8 @@
 
   vars:
     ansible_python_interpreter: /usr/bin/python3
-    linkding_host_ip: 0.0.0.0
+    forgejo_web_address: 0.0.0.0
+    forgejo_ssh_address: 0.0.0.0
 
   roles:
     # - ../roles/changedetection
@@ -14,4 +15,5 @@
     # - ../roles/nodered
     # - ../roles/vaultwarden
     # - ../roles/nextcloud
-    - ../roles/linkding
+    # - ../roles/linkding
+    - ../roles/forgejo

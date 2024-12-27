@@ -1,0 +1,13 @@
+---
+forgejo_become: true
+forgejo_become_user: root
+
+forgejo_dir: /srv/forgejo
+forgejo_web_address: 127.0.0.1
+forgejo_ssh_address: 127.0.0.1
+forgejo_web_port: 8080
+forgejo_ssh_port: 2222
+forgejo_tag: 9
+
+forgejo_postgres_database_tag: 14
+forgejo_postgres_password: secret

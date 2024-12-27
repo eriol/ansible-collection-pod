@@ -1,0 +1,91 @@
+---
+
+- block:
+
+    - name: Install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure forgejo group exits
+      ansible.builtin.group:
+        name: forgejo
+
+    - name: Ensure forgejo user exists and has restrictive settings
+      ansible.builtin.user:
+        name: forgejo
+        groups: forgejo
+        password: "*"
+        home: "{{ forgejo_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: Check if forgejo user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/forgejo"
+      register: forgejo_user_lingering
+
+    - name: Enable linger for forgejo user
+      ansible.builtin.command: "loginctl enable-linger forgejo"
+      when: not forgejo_user_lingering.stat.exists
+
+  become: "{{ forgejo_become }}"
+  become_user: "{{ forgejo_become_user }}"
+
+- block:
+
+    - name: Ensure the forgejo pod exist
+      containers.podman.podman_pod:
+        name: forgejo
+        state: created
+        ports:
+          - "{{ forgejo_web_address }}:{{ forgejo_web_port }}:3000"
+          - "{{ forgejo_ssh_address }}:{{ forgejo_ssh_port }}:22"
+
+    - name: Ensure the forgejo database container exist, stopped
+      containers.podman.podman_container:
+        pod: forgejo
+        name: forgejo-db
+        image: "docker.io/postgres:{{ forgejo_postgres_database_tag }}"
+        env:
+          POSTGRES_USER: forgejo
+          POSTGRES_PASSWORD: "{{ forgejo_postgres_password }}"
+          POSTGRES_DB: forgejo
+        volume:
+          - "forgejo-db:/var/lib/postgresql/data"
+        state: stopped
+
+    - name: Ensure the forgejo container exist, stopped
+      containers.podman.podman_container:
+        pod: forgejo
+        name: forgejo-app
+        image: "codeberg.org/forgejo/forgejo:{{ forgejo_tag }}"
+        env:
+          FORGEJO__database__DB_TYPE: postgres
+          FORGEJO__database__HOST: localhost:5432
+          FORGEJO__database__NAME: forgejo
+          FORGEJO__database__USER: forgejo
+          FORGEJO__database__PASSWD: "{{ forgejo_postgres_password }}"
+        volume:
+          - "forgejo-data:/data"
+          - /etc/timezone:/etc/timezone:ro
+          - /etc/localtime:/etc/localtime:ro
+        state: stopped
+
+    - name: Ensure systemd unit files for forgejo container exist
+      containers.podman.podman_generate_systemd:
+        name: forgejo
+        dest: ~/.config/systemd/user/
+
+    - name: Ensure forgejo pod is started and enabled on systemd
+      ansible.builtin.systemd:
+        name: pod-forgejo
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: forgejo
