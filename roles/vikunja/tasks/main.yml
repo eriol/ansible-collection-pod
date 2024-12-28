@@ -1,0 +1,67 @@
+---
+
+- block:
+
+    - name: Install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure vikunja group exits
+      ansible.builtin.group:
+        name: vikunja
+
+    - name: Ensure vikunja user exists and has restrictive settings
+      ansible.builtin.user:
+        name: vikunja
+        groups: vikunja
+        password: "*"
+        home: "{{ vikunja_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: Check if vikunja user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/vikunja"
+      register: vikunja_user_lingering
+
+    - name: Enable linger for vikunja user
+      ansible.builtin.command: "loginctl enable-linger vikunja"
+      when: not vikunja_user_lingering.stat.exists
+
+  become: "{{ vikunja_become }}"
+  become_user: "{{ vikunja_become_user }}"
+
+- block:
+
+    - name: Ensure the vikunja container exist, stopped
+      containers.podman.podman_container:
+        name: vikunja
+        image: "docker.io/vikunja/vikunja:{{ vikunja_tag }}"
+        env:
+          VIKUNJA_SERVICE_JWTSECRET: "{{ vikunja_jwtsecret }}"
+          VIKUNJA_SERVICE_PUBLICURL: "{{ vikunja_publicurl }}"
+        ports:
+          - "{{ vikunja_host_ip }}:{{ vikunja_host_port }}:3456"
+        volume:
+          - "vikunja-files:/app/vikunja/files"
+          - "vikunja-db:/db"
+        state: stopped
+
+    - name: systemd unit files for vikunja container must exist
+      containers.podman.podman_generate_systemd:
+        name: vikunja
+        dest: ~/.config/systemd/user/
+
+    - name: vikunja container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: container-vikunja
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: vikunja

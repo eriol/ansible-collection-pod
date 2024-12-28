@@ -1,0 +1,11 @@
+---
+vikunja_become: true
+vikunja_become_user: root
+
+vikunja_dir: /srv/vikunja
+vikunja_host_ip: 127.0.0.1
+vikunja_host_port: 8080
+vikunja_tag: latest
+
+vikunja_jwtsecret: secret
+vikunja_publicurl: http://localhost:8080
