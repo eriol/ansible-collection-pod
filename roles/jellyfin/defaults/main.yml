@@ -1,0 +1,9 @@
+---
+jellyfin_become: true
+jellyfin_become_user: root
+
+jellyfin_dir: /srv/jellyfin
+jellyfin_host_ip: 127.0.0.1
+jellyfin_host_port: 8080
+jellyfin_tag: latest
+jellyfin_media_path: /mnt/media

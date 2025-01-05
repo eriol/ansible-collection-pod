@@ -4,7 +4,7 @@
 
   vars:
     ansible_python_interpreter: /usr/bin/python3
-    vikunja_host_ip: 0.0.0.0
+    jellyfin_host_ip: 0.0.0.0
 
   roles:
     # - ../roles/changedetection
@@ -16,4 +16,5 @@
     # - ../roles/nextcloud
     # - ../roles/linkding
     # - ../roles/forgejo
-    - ../roles/vikunja
+    # - ../roles/vikunja
+    - ../roles/jellyfin

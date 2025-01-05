@@ -1,0 +1,66 @@
+---
+
+- block:
+
+    - name: Install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl  # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure jellyfin group exits
+      ansible.builtin.group:
+        name: jellyfin
+
+    - name: Ensure jellyfin user exists and has restrictive settings
+      ansible.builtin.user:
+        name: jellyfin
+        groups: jellyfin
+        password: "*"
+        home: "{{ jellyfin_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: Check if jellyfin user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/jellyfin"
+      register: jellyfin_user_lingering
+
+    - name: Enable linger for jellyfin user
+      ansible.builtin.command: "loginctl enable-linger jellyfin"
+      when: not jellyfin_user_lingering.stat.exists
+
+  become: "{{ jellyfin_become }}"
+  become_user: "{{ jellyfin_become_user }}"
+
+- block:
+
+    - name: Ensure the jellyfin container exist, stopped
+      containers.podman.podman_container:
+        name: jellyfin
+        image: "docker.io/jellyfin/jellyfin:{{ jellyfin_tag }}"
+        ports:
+          - "{{ jellyfin_host_ip }}:{{ jellyfin_host_port }}:8096"
+        volume:
+          - "jellyfin-data:/data"
+          - "jellyfin-config:/config"
+        mount:
+          - "type=bind,source={{ jellyfin_media_path }},destination=/media,ro=true,relabel=private"
+        state: stopped
+
+    - name: Systemd unit files for jellyfin container must exist
+      containers.podman.podman_generate_systemd:
+        name: jellyfin
+        dest: ~/.config/systemd/user/
+
+    - name: Jellyfin container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: container-jellyfin
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: jellyfin
