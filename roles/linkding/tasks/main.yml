@@ -1,12 +1,11 @@
 ---
 
 - block:
-
     - name: Install podman and acl
       ansible.builtin.apt:
         name:
           - podman
-          - acl  # needed by ansible to become an unprivileged user
+          - acl # needed by ansible to become an unprivileged user
         update_cache: true
         cache_valid_time: 3600
 
@@ -35,7 +34,6 @@
   become_user: "{{ linkding_become_user }}"
 
 - block:
-
     - name: Ensure the linkding container exist, stopped
       containers.podman.podman_container:
         name: linkding
