@@ -38,7 +38,7 @@
         name: mitra
         state: created
         ports:
-          - "{{ mitra_host_ip }}:{{ mitra_host_port }}:80"
+          - "{{ mitra_host_ip }}:{{ mitra_host_port }}:8383"
 
     - name: Ensure the mitra database container exist, stopped
       containers.podman.podman_container:
@@ -46,6 +46,7 @@
         name: mitra-db
         image: "docker.io/postgres:{{ mitra_postgres_database_tag }}"
         env:
+          POSTGRES_USER: mitra
           POSTGRES_PASSWORD: "{{ mitra_postgres_root_password }}"
           POSTGRES_DB: mitra
         volume:
