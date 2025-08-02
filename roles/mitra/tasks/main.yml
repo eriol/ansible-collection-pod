@@ -1,0 +1,79 @@
+---
+- block:
+    - name: Install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure mitra group exits
+      ansible.builtin.group:
+        name: mitra
+
+    - name: Ensure mitra user exists and has restrictive settings
+      ansible.builtin.user:
+        name: mitra
+        groups: mitra
+        password: "*"
+        home: "{{ mitra_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: Check if mitra user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/mitra"
+      register: mitra_user_lingering
+
+    - name: Enable linger for mitra user
+      ansible.builtin.command: "loginctl enable-linger mitra"
+      when: not mitra_user_lingering.stat.exists
+
+  become: "{{ mitra_become }}"
+  become_user: "{{ mitra_become_user }}"
+
+- block:
+    - name: Ensure the mitra pod exist
+      containers.podman.podman_pod:
+        name: mitra
+        state: created
+        ports:
+          - "{{ mitra_host_ip }}:{{ mitra_host_port }}:80"
+
+    - name: Ensure the mitra database container exist, stopped
+      containers.podman.podman_container:
+        pod: mitra
+        name: mitra-db
+        image: "docker.io/postgres:{{ mitra_postgres_database_tag }}"
+        env:
+          POSTGRES_PASSWORD: "{{ mitra_postgres_root_password }}"
+          POSTGRES_DB: mitra
+        volume:
+          - "mitra-db:/var/lib/postgresql/data"
+        state: stopped
+
+    - name: Ensure the mitra container exist, stopped
+      containers.podman.podman_container:
+        pod: mitra
+        name: mitra-app
+        image: "ghcr.io/eriol/oci-mitra:{{ mitra_tag }}"
+        volume:
+          - "mitra-config:/etc/mitra"
+          - "mitra-data:/var/lib/mitra"
+        state: stopped
+
+    - name: Ensure systemd unit files for mitra container exist
+      containers.podman.podman_generate_systemd:
+        name: mitra
+        dest: ~/.config/systemd/user/
+
+    - name: Ensure mitra pod is started and enabled on systemd
+      ansible.builtin.systemd:
+        name: pod-mitra
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: mitra

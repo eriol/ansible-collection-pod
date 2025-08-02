@@ -1,0 +1,11 @@
+---
+mitra_become: true
+mitra_become_user: root
+
+mitra_dir: /srv/mitra
+mitra_host_ip: 127.0.0.1
+mitra_host_port: 8080
+mitra_tag: latest
+
+mitra_postgres_database_tag: latest
+mitra_postgres_root_password: secret
