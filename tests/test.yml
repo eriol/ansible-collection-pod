@@ -4,7 +4,7 @@
 
   vars:
     ansible_python_interpreter: /usr/bin/python3
-    jellyfin_host_ip: 0.0.0.0
+    mitra_host_ip: 0.0.0.0
 
   roles:
     # - ../roles/changedetection
@@ -17,4 +17,5 @@
     # - ../roles/linkding
     # - ../roles/forgejo
     # - ../roles/vikunja
-    - ../roles/jellyfin
+    # - ../roles/jellyfin
+    - ../roles/mitra
