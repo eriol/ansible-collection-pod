@@ -8,4 +8,4 @@ mitra_host_port: 8080
 mitra_tag: latest
 
 mitra_postgres_database_tag: latest
-mitra_postgres_root_password: secret
+mitra_postgres_password: secret

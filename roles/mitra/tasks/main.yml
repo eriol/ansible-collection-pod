@@ -47,7 +47,7 @@
         image: "docker.io/postgres:{{ mitra_postgres_database_tag }}"
         env:
           POSTGRES_USER: mitra
-          POSTGRES_PASSWORD: "{{ mitra_postgres_root_password }}"
+          POSTGRES_PASSWORD: "{{ mitra_postgres_password }}"
           POSTGRES_DB: mitra
         volume:
           - "mitra-db:/var/lib/postgresql/data"
