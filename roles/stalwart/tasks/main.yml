@@ -1,0 +1,63 @@
+---
+- block:
+    - name: Install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure stalwart group exits
+      ansible.builtin.group:
+        name: stalwart
+
+    - name: Ensure stalwart user exists and has restrictive settings
+      ansible.builtin.user:
+        name: stalwart
+        groups: stalwart
+        password: "*"
+        home: "{{ stalwart_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: Check if stalwart user is lingering
+      ansible.builtin.stat:
+        path: "/var/lib/systemd/linger/stalwart"
+      register: stalwart_user_lingering
+
+    - name: Enable linger for stalwart user
+      ansible.builtin.command: "loginctl enable-linger stalwart"
+      when: not stalwart_user_lingering.stat.exists
+
+  become: "{{ stalwart_become }}"
+  become_user: "{{ stalwart_become_user }}"
+
+- block:
+    - name: Ensure the stalwart container exist, stopped
+      containers.podman.podman_container:
+        name: stalwart
+        image: "docker.io/stalwartlabs/stalwart:{{ stalwart_tag }}"
+        ports:
+          - "{{ stalwart_host_ip }}:{{ stalwart_host_web_port }}:8080"
+          - "{{ stalwart_host_ip }}:{{ stalwart_host_smtp_port }}:25"
+          - "{{ stalwart_host_ip }}:{{ stalwart_host_smtps_port }}:465"
+          - "{{ stalwart_host_ip }}:{{ stalwart_host_imaps_port }}:993"
+        volume:
+          - "stalwart-data:/opt/stalwart"
+        state: stopped
+
+    - name: Systemd unit files for stalwart container must exist
+      containers.podman.podman_generate_systemd:
+        name: stalwart
+        dest: ~/.config/systemd/user/
+
+    - name: Linkding container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: container-stalwart
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
+
+  become: true
+  become_user: stalwart
