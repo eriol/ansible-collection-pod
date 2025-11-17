@@ -51,7 +51,7 @@
         name: stalwart
         dest: ~/.config/systemd/user/
 
-    - name: Linkding container must be started and enabled on systemd
+    - name: Stalwart container must be started and enabled on systemd
       ansible.builtin.systemd:
         name: container-stalwart
         daemon_reload: true
