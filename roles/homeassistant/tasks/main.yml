@@ -1,20 +1,22 @@
 ---
 
-- block:
-
-    - name: install podman and acl
+- name: Setup user and lingering
+  become: "{{ homeassistant_become }}"
+  become_user: "{{ homeassistant_become_user }}"
+  block:
+    - name: Install podman and acl
       ansible.builtin.apt:
         name:
           - podman
-          - acl  # needed by ansible to become an unprivileged user
+          - acl # needed by ansible to become an unprivileged user
         update_cache: true
         cache_valid_time: 3600
 
-    - name: ensure homeassistant group exits
+    - name: Ensure homeassistant group exits
       ansible.builtin.group:
         name: homeassistant
 
-    - name: ensure homeassistant user exists and has restrictive settings
+    - name: Ensure homeassistant user exists and has restrictive settings
       ansible.builtin.user:
         name: homeassistant
         group: homeassistant
@@ -22,25 +24,42 @@
         home: "{{ homeassistant_dir }}"
         shell: /usr/sbin/nologin
 
-    - name: check if homeassistant user is lingering
+    - name: Check if homeassistant user is lingering
       ansible.builtin.stat:
         path: "/var/lib/systemd/linger/homeassistant"
       register: homeassistant_user_lingering
 
-    - name: enable linger for homeassistant user
+    - name: Enable linger for homeassistant user
       ansible.builtin.command: "loginctl enable-linger homeassistant"
       when: not homeassistant_user_lingering.stat.exists
 
-  become: "{{ homeassistant_become }}"
-  become_user: "{{ homeassistant_become_user }}"
+- name: OCI stuff
+  become: true
+  become_user: homeassistant
+  block:
+    - name: Ensure homeassistant container is stopped during update
+      ansible.builtin.systemd:
+        name: container-homeassistant
+        state: stopped
+        scope: user
+      when: homeassistant_update | bool
 
-- block:
+    - name: Ensure homeassistant container is removed during update
+      containers.podman.podman_container:
+        name: homeassistant
+        state: absent
+      when: homeassistant_update | bool
 
-    - name: ensure the homeassistant container exist, stopped
+    - name: Pull homeassistant image during update
+      containers.podman.podman_image:
+        name: "ghcr.io/home-assistant/home-assistant:{{ homeassistant_tag }}"
+        force: true
+      when: homeassistant_update | bool
+
+    - name: Ensure the homeassistant container exist, stopped
       containers.podman.podman_container:
         name: homeassistant
         image: "ghcr.io/home-assistant/home-assistant:{{ homeassistant_tag }}"
-        pull: "{{ 'always' if homeassistant_update | bool else 'missing' }}"
         network: host
         privileged: true
         ports:
@@ -49,21 +68,17 @@
           TZ: "{{ homeassistant_time_zone }}"
         volume:
           - "homeassistant_data:/config"
-        recreate: "{{ homeassistant_update | bool }}"
         state: stopped
 
-    - name: systemd unit files for homeassistant container must exist
+    - name: Systemd unit files for homeassistant container must exist
       containers.podman.podman_generate_systemd:
         name: homeassistant
         dest: ~/.config/systemd/user/
 
-    - name: homeassistant container must be started and enabled on systemd
+    - name: Homeassistant container must be started and enabled on systemd
       ansible.builtin.systemd:
         name: container-homeassistant
         daemon_reload: true
-        state: "{{ 'restarted' if homeassistant_update | bool else 'started' }}"
+        state: started
         enabled: true
         scope: user
-
-  become: true
-  become_user: homeassistant
