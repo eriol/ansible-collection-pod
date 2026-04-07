@@ -5,4 +5,5 @@ homeassistant_become_user: root
 homeassistant_dir: /srv/homeassistant
 homeassistant_host_ip: 127.0.0.1
 homeassistant_host_port: 8123
+homeassistant_tag: stable
 homeassistant_time_zone: Europe/Rome

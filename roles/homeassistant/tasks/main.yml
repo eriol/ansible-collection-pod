@@ -39,7 +39,7 @@
     - name: ensure the homeassistant container exist, stopped
       containers.podman.podman_container:
         name: homeassistant
-        image: ghcr.io/home-assistant/home-assistant:stable
+        image: "ghcr.io/home-assistant/home-assistant:{{ homeassistant_tag }}"
         network: host
         privileged: true
         ports:
