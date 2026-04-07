@@ -40,6 +40,7 @@
       containers.podman.podman_container:
         name: homeassistant
         image: "ghcr.io/home-assistant/home-assistant:{{ homeassistant_tag }}"
+        pull: "{{ 'always' if homeassistant_update | bool else 'missing' }}"
         network: host
         privileged: true
         ports:
@@ -48,6 +49,7 @@
           TZ: "{{ homeassistant_time_zone }}"
         volume:
           - "homeassistant_data:/config"
+        recreate: "{{ homeassistant_update | bool }}"
         state: stopped
 
     - name: systemd unit files for homeassistant container must exist
@@ -59,7 +61,7 @@
       ansible.builtin.systemd:
         name: container-homeassistant
         daemon_reload: true
-        state: started
+        state: "{{ 'restarted' if homeassistant_update | bool else 'started' }}"
         enabled: true
         scope: user
 
