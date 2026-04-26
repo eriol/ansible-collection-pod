@@ -3,8 +3,9 @@
     - name: Install podman and acl
       ansible.builtin.apt:
         name:
-          - podman
           - acl # needed by ansible to become an unprivileged user
+          - passt
+          - podman
         update_cache: true
         cache_valid_time: 3600
 
