@@ -44,7 +44,8 @@
           - "{{ stalwart_host_ip }}:{{ stalwart_host_submission_port }}:587"
           - "{{ stalwart_host_ip }}:{{ stalwart_host_imaps_port }}:993"
         volume:
-          - "stalwart-data:/opt/stalwart"
+          - "stalwart-etc:/etc/stalwart"
+          - "stalwart-data:/var/lib/stalwart"
         state: stopped
 
     - name: Systemd unit files for stalwart container must exist
