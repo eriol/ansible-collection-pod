@@ -1,0 +1,8 @@
+---
+couchdb_become: true
+couchdb_become_user: root
+
+couchdb_dir: /srv/couchdb
+couchdb_host_ip: 127.0.0.1
+couchdb_host_port: 5984
+couchdb_tag: latest

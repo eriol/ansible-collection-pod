@@ -1,0 +1,66 @@
+---
+
+- name: Setup user and lingering
+  become: "{{ couchdb_become }}"
+  become_user: "{{ couchdb_become_user }}"
+  block:
+    - name: Install podman and acl
+      ansible.builtin.apt:
+        name:
+          - podman
+          - acl # needed by ansible to become an unprivileged user
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Ensure couchdb group exists
+      ansible.builtin.group:
+        name: couchdb
+
+    - name: Ensure couchdb user exists and has restrictive settings
+      ansible.builtin.user:
+        name: couchdb
+        group: couchdb
+        password: "*"
+        home: "{{ couchdb_dir }}"
+        shell: /usr/sbin/nologin
+
+    - name: Check if couchdb user is lingering
+      ansible.builtin.stat:
+        path: /var/lib/systemd/linger/couchdb
+      register: couchdb_user_lingering
+
+    - name: Enable linger for couchdb user
+      ansible.builtin.command: loginctl enable-linger couchdb
+      when: not couchdb_user_lingering.stat.exists
+
+- name: OCI stuff
+  become: true
+  become_user: couchdb
+  block:
+    - name: Ensure couchdb quadlet exists
+      containers.podman.podman_container:
+        name: couchdb
+        image: "docker.io/library/couchdb:{{ couchdb_tag }}"
+        ports:
+          - "{{ couchdb_host_ip }}:{{ couchdb_host_port }}:5984"
+        volume:
+          - couchdb-data:/opt/couchdb/data
+          - couchdb-etc:/opt/couchdb/etc/local.d
+        state: quadlet
+        quadlet_filename: couchdb
+        quadlet_file_mode: "0640"
+        quadlet_options:
+          - |
+            [Service]
+            TimeoutStartSec=900
+          - |
+            [Install]
+            WantedBy=default.target
+
+    - name: Couchdb container must be started and enabled on systemd
+      ansible.builtin.systemd:
+        name: couchdb
+        daemon_reload: true
+        state: started
+        enabled: true
+        scope: user
