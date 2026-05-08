@@ -6,3 +6,6 @@ couchdb_dir: /srv/couchdb
 couchdb_host_ip: 127.0.0.1
 couchdb_host_port: 5984
 couchdb_tag: latest
+
+couchdb_admin_user: admin
+couchdb_admin_password: secret

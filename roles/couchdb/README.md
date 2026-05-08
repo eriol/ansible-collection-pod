@@ -2,7 +2,9 @@
 
 CouchDB container managed with rootless Podman quadlet.
 
-The role starts CouchDB bound to `127.0.0.1:5984` by default.
+The role starts CouchDB bound to `127.0.0.1:5984` by default. It creates
+`{{ couchdb_dir }}/couchdb.env` for the official CouchDB image bootstrap
+credentials.
 
 ## Example playbook
 
@@ -12,19 +14,17 @@ The role starts CouchDB bound to `127.0.0.1:5984` by default.
     - eriol.pod.couchdb
 ```
 
-## Create an admin user
+Override the default credentials:
 
-By default CouchDB starts without an admin account. Create one after the
-service is running:
-
-```shell
-curl -X PUT http://127.0.0.1:5984/_node/_local/_config/admins/myuser \
-  -H "Content-Type: application/json" \
-  -d '"mypassword"'
+```yaml
+couchdb_admin_user: myuser
+couchdb_admin_password: changeme
 ```
 
-Verify authentication:
+## Verify access
+
+Check CouchDB with the configured admin credentials:
 
 ```shell
-curl -u myuser:mypassword http://127.0.0.1:5984/_up
+curl -u myuser:changeme http://127.0.0.1:5984/_up
 ```

@@ -24,6 +24,14 @@
         home: "{{ couchdb_dir }}"
         shell: /usr/sbin/nologin
 
+    - name: Ensure couchdb directory is owned by couchdb
+      ansible.builtin.file:
+        path: "{{ couchdb_dir }}"
+        state: directory
+        owner: couchdb
+        group: couchdb
+        mode: "0750"
+
     - name: Check if couchdb user is lingering
       ansible.builtin.stat:
         path: /var/lib/systemd/linger/couchdb
@@ -37,6 +45,16 @@
   become: true
   become_user: couchdb
   block:
+    - name: Ensure couchdb environment file exists
+      ansible.builtin.copy:
+        dest: "{{ couchdb_dir }}/couchdb.env"
+        mode: "0600"
+        content: |
+          COUCHDB_USER={{ couchdb_admin_user }}
+          COUCHDB_PASSWORD={{ couchdb_admin_password }}
+      no_log: true
+      register: couchdb_environment_file
+
     - name: Ensure couchdb quadlet exists
       containers.podman.podman_container:
         name: couchdb
@@ -50,17 +68,19 @@
         quadlet_filename: couchdb
         quadlet_file_mode: "0640"
         quadlet_options:
+          - "EnvironmentFile={{ couchdb_dir }}/couchdb.env"
           - |
             [Service]
             TimeoutStartSec=900
           - |
             [Install]
             WantedBy=default.target
+      register: couchdb_quadlet
 
     - name: Couchdb container must be started and enabled on systemd
       ansible.builtin.systemd:
         name: couchdb
         daemon_reload: true
-        state: started
+        state: "{{ 'restarted' if couchdb_environment_file.changed or couchdb_quadlet.changed else 'started' }}"
         enabled: true
         scope: user
