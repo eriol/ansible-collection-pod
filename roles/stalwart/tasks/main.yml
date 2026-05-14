@@ -38,6 +38,7 @@
       containers.podman.podman_container:
         name: stalwart
         image: "docker.io/stalwartlabs/stalwart:{{ stalwart_tag }}"
+        network: "slirp4netns"
         ports:
           - "{{ stalwart_admin_ip }}:{{ stalwart_host_web_port }}:8080"
           - "{{ stalwart_host_ip }}:{{ stalwart_host_smtp_port }}:25"
