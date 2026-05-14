@@ -3,11 +3,5 @@ stalwart_become: true
 stalwart_become_user: root
 
 stalwart_dir: /srv/stalwart
-stalwart_admin_ip: 127.0.0.1
-stalwart_host_ip: 127.0.0.1
-stalwart_host_web_port: 8080
-stalwart_host_smtp_port: 25
-stalwart_host_submission_port: 587
-stalwart_host_imaps_port: 993
 
 stalwart_tag: latest
