@@ -42,6 +42,7 @@
         volume:
           - "stalwart-etc:/etc/stalwart"
           - "stalwart-data:/var/lib/stalwart"
+          - "{{ stalwart_dir }}/certs:/certs:ro"
         state: stopped
 
     - name: Systemd unit files for stalwart container must exist
