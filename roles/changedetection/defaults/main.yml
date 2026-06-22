@@ -6,3 +6,11 @@ changedetection_dir: /srv/changedetection
 changedetection_host_ip: 127.0.0.1
 changedetection_host_port: 5000
 changedetection_tag: latest
+
+changedetection_browser: true
+changedetection_browser_tag: latest
+changedetection_browser_url: ws://localhost:3000
+changedetection_browser_screen_width: 1920
+changedetection_browser_screen_height: 1024
+changedetection_browser_screen_depth: 16
+changedetection_browser_max_concurrent_chrome_processes: 10
