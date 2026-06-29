@@ -36,19 +36,6 @@
 
 - block:
 
-    - name: old changedetection container service must be stopped and disabled
-      ansible.builtin.systemd:
-        name: container-changedetection
-        state: stopped
-        enabled: false
-        scope: user
-      failed_when: false
-
-    - name: old changedetection container must be absent
-      containers.podman.podman_container:
-        name: changedetection
-        state: absent
-
     - name: ensure the changedetection pod exist
       containers.podman.podman_pod:
         name: changedetection
