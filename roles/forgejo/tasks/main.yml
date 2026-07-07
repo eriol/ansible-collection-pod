@@ -40,9 +40,7 @@
       containers.podman.podman_pod:
         name: forgejo
         state: created
-        ports:
-          - "{{ forgejo_web_address }}:{{ forgejo_web_port }}:3000"
-          - "{{ forgejo_ssh_address }}:{{ forgejo_ssh_port }}:22"
+        ports: "{{ forgejo_pod_ports }}"
 
     - name: Ensure the forgejo database container exist, stopped
       containers.podman.podman_container:
