@@ -11,7 +11,7 @@ forgejo_web_address6: ""
 forgejo_ssh_address6: ""
 forgejo_web_port: 8080
 forgejo_ssh_port: 2222
-forgejo_tag: 15
+forgejo_tag: 16
 
 forgejo_postgres_database_tag: 14
 forgejo_postgres_password: secret
