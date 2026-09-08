@@ -36,33 +36,6 @@
 
 - block:
 
-    - name: check if the old vaultwarden container service unit exists
-      ansible.builtin.stat:
-        path: ~/.config/systemd/user/container-vaultwarden.service
-      register: vaultwarden_old_unit
-
-    - name: migrate from the old generated systemd unit to quadlet
-      when: vaultwarden_old_unit.stat.exists
-      block:
-
-        - name: old vaultwarden container service must be stopped and disabled
-          ansible.builtin.systemd:
-            name: container-vaultwarden
-            state: stopped
-            enabled: false
-            scope: user
-          failed_when: false
-
-        - name: old vaultwarden container service unit must be absent
-          ansible.builtin.file:
-            path: ~/.config/systemd/user/container-vaultwarden.service
-            state: absent
-
-        - name: old vaultwarden container must be absent
-          containers.podman.podman_container:
-            name: vaultwarden
-            state: absent
-
     - name: ensure vaultwarden quadlet exists
       containers.podman.podman_container:
         name: vaultwarden
