@@ -34,7 +34,33 @@
   become_user: "{{ linkding_become_user }}"
 
 - block:
-    - name: Ensure the linkding container exist, stopped
+    - name: Check if the old linkding container service unit exists
+      ansible.builtin.stat:
+        path: ~/.config/systemd/user/container-linkding.service
+      register: linkding_old_unit
+
+    - name: Migrate from the old generated systemd unit to quadlet
+      when: linkding_old_unit.stat.exists
+      block:
+        - name: Old linkding container service must be stopped and disabled
+          ansible.builtin.systemd:
+            name: container-linkding
+            state: stopped
+            enabled: false
+            scope: user
+          failed_when: false
+
+        - name: Old linkding container service unit must be absent
+          ansible.builtin.file:
+            path: ~/.config/systemd/user/container-linkding.service
+            state: absent
+
+        - name: Old linkding container must be absent
+          containers.podman.podman_container:
+            name: linkding
+            state: absent
+
+    - name: Ensure linkding quadlet exists
       containers.podman.podman_container:
         name: linkding
         image: "docker.io/sissbruecker/linkding:{{ linkding_tag }}"
@@ -42,18 +68,20 @@
           - "{{ linkding_host_ip }}:{{ linkding_host_port }}:9090"
         volume:
           - "linkding-data:/etc/linkding/data"
-        state: stopped
-
-    - name: Systemd unit files for linkding container must exist
-      containers.podman.podman_generate_systemd:
-        name: linkding
-        dest: ~/.config/systemd/user/
+        state: quadlet
+        quadlet_filename: linkding
+        quadlet_file_mode: "0640"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+      register: linkding_quadlet
 
     - name: Linkding container must be started and enabled on systemd
       ansible.builtin.systemd:
-        name: container-linkding
+        name: linkding
         daemon_reload: true
-        state: started
+        state: "{{ 'restarted' if linkding_quadlet.changed else 'started' }}"
         enabled: true
         scope: user
 
