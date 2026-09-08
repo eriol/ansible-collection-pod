@@ -36,7 +36,34 @@
 
 - block:
 
-    - name: ensure the vaultwarden container exist, stopped
+    - name: check if the old vaultwarden container service unit exists
+      ansible.builtin.stat:
+        path: ~/.config/systemd/user/container-vaultwarden.service
+      register: vaultwarden_old_unit
+
+    - name: migrate from the old generated systemd unit to quadlet
+      when: vaultwarden_old_unit.stat.exists
+      block:
+
+        - name: old vaultwarden container service must be stopped and disabled
+          ansible.builtin.systemd:
+            name: container-vaultwarden
+            state: stopped
+            enabled: false
+            scope: user
+          failed_when: false
+
+        - name: old vaultwarden container service unit must be absent
+          ansible.builtin.file:
+            path: ~/.config/systemd/user/container-vaultwarden.service
+            state: absent
+
+        - name: old vaultwarden container must be absent
+          containers.podman.podman_container:
+            name: vaultwarden
+            state: absent
+
+    - name: ensure vaultwarden quadlet exists
       containers.podman.podman_container:
         name: vaultwarden
         image: "docker.io/vaultwarden/server:{{ vaultwarden_tag }}"
@@ -44,18 +71,20 @@
           - "{{ vaultwarden_host_ip }}:{{ vaultwarden_host_port }}:80"
         volume:
           - "vaultwarden-data:/data"
-        state: stopped
-
-    - name: systemd unit files for vaultwarden container must exist
-      containers.podman.podman_generate_systemd:
-        name: vaultwarden
-        dest: ~/.config/systemd/user/
+        state: quadlet
+        quadlet_filename: vaultwarden
+        quadlet_file_mode: "0640"
+        quadlet_options:
+          - |
+            [Install]
+            WantedBy=default.target
+      register: vaultwarden_quadlet
 
     - name: vaultwarden container must be started and enabled on systemd
       ansible.builtin.systemd:
-        name: container-vaultwarden
+        name: vaultwarden
         daemon_reload: true
-        state: started
+        state: "{{ 'restarted' if vaultwarden_quadlet.changed else 'started' }}"
         enabled: true
         scope: user
 
