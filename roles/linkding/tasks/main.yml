@@ -32,6 +32,7 @@
     - name: Enable linger for linkding user
       ansible.builtin.command: "loginctl enable-linger linkding"
       when: not linkding_user_lingering.stat.exists
+      changed_when: true
 
 - name: Setup linkding quadlet
   become: true
