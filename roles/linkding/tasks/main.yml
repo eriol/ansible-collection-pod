@@ -1,6 +1,9 @@
 ---
 
-- block:
+- name: Install dependencies and setup user
+  become: "{{ linkding_become }}"
+  become_user: "{{ linkding_become_user }}"
+  block:
     - name: Install podman and acl
       ansible.builtin.apt:
         name:
@@ -30,10 +33,10 @@
       ansible.builtin.command: "loginctl enable-linger linkding"
       when: not linkding_user_lingering.stat.exists
 
-  become: "{{ linkding_become }}"
-  become_user: "{{ linkding_become_user }}"
-
-- block:
+- name: Setup linkding quadlet
+  become: true
+  become_user: linkding
+  block:
     - name: Ensure linkding quadlet exists
       containers.podman.podman_container:
         name: linkding
@@ -47,8 +50,8 @@
         quadlet_file_mode: "0640"
         quadlet_options:
           - |
-            [Install]
-            WantedBy=default.target
+              [Install]
+              WantedBy=default.target
       register: linkding_quadlet
 
     - name: Linkding container must be started and enabled on systemd
@@ -58,6 +61,3 @@
         state: "{{ 'restarted' if linkding_quadlet.changed else 'started' }}"
         enabled: true
         scope: user
-
-  become: true
-  become_user: linkding
