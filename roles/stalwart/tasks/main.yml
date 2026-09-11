@@ -30,6 +30,21 @@
       ansible.builtin.command: "loginctl enable-linger stalwart"
       when: not stalwart_user_lingering.stat.exists
 
+    - name: Check if /var/lib/dehydrated/hook.d exists
+      ansible.builtin.stat:
+        path: /var/lib/dehydrated/hook.d
+      register: stalwart_dehydrated_hook_dir
+      when: stalwart_dehydrated_hook | length > 0
+
+    - name: Install /var/lib/dehydrated/hook.d/20-stalwart.sh
+      ansible.builtin.copy:
+        content: "{{ stalwart_dehydrated_hook }}"
+        dest: /var/lib/dehydrated/hook.d/20-stalwart.sh
+        owner: root
+        group: root
+        mode: "0750"
+      when: stalwart_dehydrated_hook_dir.stat.isdir | default(false)
+
   become: "{{ stalwart_become }}"
   become_user: "{{ stalwart_become_user }}"
 

@@ -5,3 +5,5 @@ stalwart_become_user: root
 stalwart_dir: /srv/stalwart
 
 stalwart_tag: latest
+
+stalwart_dehydrated_hook: ""
