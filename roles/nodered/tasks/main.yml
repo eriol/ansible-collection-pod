@@ -2,11 +2,12 @@
 
 - block:
 
-    - name: install podman and acl
+    - name: install podman and dependencies
       ansible.builtin.apt:
         name:
           - podman
           - acl  # needed by ansible to become an unprivileged user
+          - dbus-user-session  # needed by rootless podman to talk to systemd
         update_cache: true
         cache_valid_time: 3600
 
@@ -17,7 +18,7 @@
     - name: ensure nodered user exists and has restrictive settings
       ansible.builtin.user:
         name: nodered
-        groups: nodered
+        group: nodered
         password: "*"
         home: "{{ nodered_dir }}"
         shell: /usr/sbin/nologin
@@ -35,6 +36,13 @@
   become_user: "{{ nodered_become_user }}"
 
 - block:
+
+    - name: Ensure the D-Bus session bus is running for nodered
+      ansible.builtin.systemd:
+        name: dbus.socket
+        state: started
+        daemon_reload: true
+        scope: user
 
     - name: ensure the nodered container exist, stopped
       containers.podman.podman_container:
