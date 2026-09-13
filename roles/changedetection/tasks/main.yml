@@ -1,21 +1,23 @@
 ---
 
-- block:
-
-    - name: install podman and dependencies
+- name: Install dependencies and setup user
+  become: "{{ changedetection_become }}"
+  become_user: "{{ changedetection_become_user }}"
+  block:
+    - name: Install podman and dependencies
       ansible.builtin.apt:
         name:
           - podman
-          - acl  # needed by ansible to become an unprivileged user
-          - dbus-user-session  # needed by rootless podman to talk to systemd
+          - acl # needed by ansible to become an unprivileged user
+          - dbus-user-session # needed by rootless podman to talk to systemd
         update_cache: true
         cache_valid_time: 3600
 
-    - name: ensure changedetection group exits
+    - name: Ensure changedetection group exits
       ansible.builtin.group:
         name: changedetection
 
-    - name: ensure changedetection user exists and has restrictive settings
+    - name: Ensure changedetection user exists and has restrictive settings
       ansible.builtin.user:
         name: changedetection
         group: changedetection
@@ -23,20 +25,20 @@
         home: "{{ changedetection_dir }}"
         shell: /usr/sbin/nologin
 
-    - name: check if changedetection user is lingering
+    - name: Check if changedetection user is lingering
       ansible.builtin.stat:
         path: "/var/lib/systemd/linger/changedetection"
       register: changedetection_user_lingering
 
-    - name: enable linger for changedetection user
+    - name: Enable linger for changedetection user
       ansible.builtin.command: "loginctl enable-linger changedetection"
       when: not changedetection_user_lingering.stat.exists
+      changed_when: true
 
-  become: "{{ changedetection_become }}"
-  become_user: "{{ changedetection_become_user }}"
-
-- block:
-
+- name: Setup changedetection quadlets
+  become: true
+  become_user: changedetection
+  block:
     - name: Ensure the D-Bus session bus is running for changedetection
       ansible.builtin.systemd:
         name: dbus.socket
@@ -44,27 +46,72 @@
         daemon_reload: true
         scope: user
 
-    - name: ensure the changedetection pod exist
+    - name: Check if the old changedetection pod service unit exists
+      ansible.builtin.stat:
+        path: ~/.config/systemd/user/pod-changedetection.service
+      register: changedetection_old_unit
+
+    - name: Migrate from the old generated systemd units to quadlet
+      when: changedetection_old_unit.stat.exists
+      block:
+        - name: Old changedetection services must be stopped and disabled
+          ansible.builtin.systemd:
+            name: "{{ item }}"
+            state: stopped
+            enabled: false
+            scope: user
+          failed_when: false
+          loop:
+            - pod-changedetection
+            - container-changedetection-app
+            - container-changedetection-browser
+
+        - name: Old changedetection service units must be absent
+          ansible.builtin.file:
+            path: "~/.config/systemd/user/{{ item }}.service"
+            state: absent
+          loop:
+            - pod-changedetection
+            - container-changedetection-app
+            - container-changedetection-browser
+
+        - name: Old changedetection pod must be absent
+          containers.podman.podman_pod:
+            name: changedetection
+            state: absent
+
+    - name: Ensure the changedetection pod quadlet exists
       containers.podman.podman_pod:
         name: changedetection
-        state: created
         ports:
           - "{{ changedetection_host_ip }}:{{ changedetection_host_port }}:5000"
+        state: quadlet
+        quadlet_filename: changedetection
+        quadlet_file_mode: "0640"
+        quadlet_options:
+          - |
+              [Install]
+              WantedBy=default.target
+      register: changedetection_pod_quadlet
 
-    - name: ensure the changedetection app container exist, stopped
+    - name: Ensure the changedetection app quadlet exists
       containers.podman.podman_container:
-        pod: changedetection
         name: changedetection-app
+        pod: changedetection.pod
         image: "docker.io/dgtlmoon/changedetection.io:{{ changedetection_tag }}"
-        env: "{{ {'PLAYWRIGHT_DRIVER_URL': changedetection_browser_url} if changedetection_browser else {} }}"
+        env: "{{ {'PLAYWRIGHT_DRIVER_URL': changedetection_browser_url}
+          if changedetection_browser else omit }}"
         volume:
           - "changedetection-data:/datastore"
-        state: stopped
+        state: quadlet
+        quadlet_filename: changedetection-app
+        quadlet_file_mode: "0640"
+      register: changedetection_app_quadlet
 
-    - name: ensure the changedetection browser container exist, stopped
+    - name: Ensure the changedetection browser quadlet exists
       containers.podman.podman_container:
-        pod: changedetection
         name: changedetection-browser
+        pod: changedetection.pod
         image: "docker.io/dgtlmoon/sockpuppetbrowser:{{ changedetection_browser_tag }}"
         cap_add:
           - SYS_ADMIN
@@ -73,21 +120,39 @@
           SCREEN_HEIGHT: "{{ changedetection_browser_screen_height }}"
           SCREEN_DEPTH: "{{ changedetection_browser_screen_depth }}"
           MAX_CONCURRENT_CHROME_PROCESSES: "{{ changedetection_browser_max_concurrent_chrome_processes }}"
-        state: stopped
+        state: quadlet
+        quadlet_filename: changedetection-browser
+        quadlet_file_mode: "0640"
+      register: changedetection_browser_quadlet
       when: changedetection_browser
 
-    - name: systemd unit files for changedetection pod must exist
-      containers.podman.podman_generate_systemd:
-        name: changedetection
-        dest: ~/.config/systemd/user/
+    - name: Remove the changedetection browser when it is disabled
+      when: not changedetection_browser
+      block:
+        - name: Changedetection browser container must be stopped
+          ansible.builtin.systemd:
+            name: changedetection-browser
+            state: stopped
+            scope: user
+          failed_when: false
 
-    - name: changedetection pod must be started and enabled on systemd
+        - name: Changedetection browser quadlet must be absent
+          ansible.builtin.file:
+            path: ~/.config/containers/systemd/changedetection-browser.container
+            state: absent
+          register: changedetection_browser_quadlet_absent
+
+    - name: Changedetection pod must be started and enabled on systemd
       ansible.builtin.systemd:
-        name: pod-changedetection
+        name: changedetection-pod
         daemon_reload: true
-        state: started
+        state: "{{ changedetection_pod_state }}"
         enabled: true
         scope: user
-
-  become: true
-  become_user: changedetection
+      vars:
+        changedetection_pod_state: >-
+          {{ 'restarted' if changedetection_pod_quadlet.changed
+             or changedetection_app_quadlet.changed
+             or changedetection_browser_quadlet.changed | default(false)
+             or changedetection_browser_quadlet_absent.changed | default(false)
+             else 'started' }}
