@@ -4,11 +4,12 @@
   become: "{{ linkding_become }}"
   become_user: "{{ linkding_become_user }}"
   block:
-    - name: Install podman and acl
+    - name: Install podman and dependencies
       ansible.builtin.apt:
         name:
           - podman
           - acl # needed by ansible to become an unprivileged user
+          - dbus-user-session # needed by rootless podman to talk to systemd
         update_cache: true
         cache_valid_time: 3600
 
@@ -19,7 +20,7 @@
     - name: Ensure linkding user exists and has restrictive settings
       ansible.builtin.user:
         name: linkding
-        groups: linkding
+        group: linkding
         password: "*"
         home: "{{ linkding_dir }}"
         shell: /usr/sbin/nologin
@@ -38,6 +39,13 @@
   become: true
   become_user: linkding
   block:
+    - name: Ensure the D-Bus session bus is running for linkding
+      ansible.builtin.systemd:
+        name: dbus.socket
+        state: started
+        daemon_reload: true
+        scope: user
+
     - name: Ensure linkding quadlet exists
       containers.podman.podman_container:
         name: linkding
