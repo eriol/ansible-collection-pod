@@ -46,40 +46,6 @@
         daemon_reload: true
         scope: user
 
-    - name: Check if the old changedetection pod service unit exists
-      ansible.builtin.stat:
-        path: ~/.config/systemd/user/pod-changedetection.service
-      register: changedetection_old_unit
-
-    - name: Migrate from the old generated systemd units to quadlet
-      when: changedetection_old_unit.stat.exists
-      block:
-        - name: Old changedetection services must be stopped and disabled
-          ansible.builtin.systemd:
-            name: "{{ item }}"
-            state: stopped
-            enabled: false
-            scope: user
-          failed_when: false
-          loop:
-            - pod-changedetection
-            - container-changedetection-app
-            - container-changedetection-browser
-
-        - name: Old changedetection service units must be absent
-          ansible.builtin.file:
-            path: "~/.config/systemd/user/{{ item }}.service"
-            state: absent
-          loop:
-            - pod-changedetection
-            - container-changedetection-app
-            - container-changedetection-browser
-
-        - name: Old changedetection pod must be absent
-          containers.podman.podman_pod:
-            name: changedetection
-            state: absent
-
     - name: Ensure the changedetection pod quadlet exists
       containers.podman.podman_pod:
         name: changedetection
