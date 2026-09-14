@@ -44,7 +44,33 @@
         daemon_reload: true
         scope: user
 
-    - name: Ensure the jellyfin container exist, stopped
+    - name: Check if the old jellyfin container service unit exists
+      ansible.builtin.stat:
+        path: ~/.config/systemd/user/container-jellyfin.service
+      register: jellyfin_old_unit
+
+    - name: Migrate from the old generated systemd unit to quadlet
+      when: jellyfin_old_unit.stat.exists
+      block:
+        - name: Old jellyfin container service must be stopped and disabled
+          ansible.builtin.systemd:
+            name: container-jellyfin
+            state: stopped
+            enabled: false
+            scope: user
+          failed_when: false
+
+        - name: Old jellyfin container service unit must be absent
+          ansible.builtin.file:
+            path: ~/.config/systemd/user/container-jellyfin.service
+            state: absent
+
+        - name: Old jellyfin container must be absent
+          containers.podman.podman_container:
+            name: jellyfin
+            state: absent
+
+    - name: Ensure jellyfin quadlet exists
       containers.podman.podman_container:
         name: jellyfin
         image: "docker.io/jellyfin/jellyfin:{{ jellyfin_tag }}"
@@ -55,18 +81,20 @@
           - "jellyfin-config:/config"
         mount:
           - "type=bind,source={{ jellyfin_media_path }},destination=/media,ro=true,relabel=private"
-        state: stopped
-
-    - name: Systemd unit files for jellyfin container must exist
-      containers.podman.podman_generate_systemd:
-        name: jellyfin
-        dest: ~/.config/systemd/user/
+        state: quadlet
+        quadlet_filename: jellyfin
+        quadlet_file_mode: "0640"
+        quadlet_options:
+          - |
+              [Install]
+              WantedBy=default.target
+      register: jellyfin_quadlet
 
     - name: Jellyfin container must be started and enabled on systemd
       ansible.builtin.systemd:
-        name: container-jellyfin
+        name: jellyfin
         daemon_reload: true
-        state: started
+        state: "{{ 'restarted' if jellyfin_quadlet.changed else 'started' }}"
         enabled: true
         scope: user
 
