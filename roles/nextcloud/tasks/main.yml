@@ -44,46 +44,95 @@
         daemon_reload: true
         scope: user
 
-    - name: Ensure the nextcloud pod exist
+    - name: Check if the old nextcloud pod service unit exists
+      ansible.builtin.stat:
+        path: ~/.config/systemd/user/pod-nextcloud.service
+      register: nextcloud_old_unit
+
+    - name: Migrate from the old generated systemd units to quadlet
+      when: nextcloud_old_unit.stat.exists
+      block:
+        - name: Old nextcloud services must be stopped and disabled
+          ansible.builtin.systemd:
+            name: "{{ item }}"
+            state: stopped
+            enabled: false
+            scope: user
+          failed_when: false
+          loop:
+            - pod-nextcloud
+            - container-nextcloud-db
+            - container-nextcloud-app
+
+        - name: Old nextcloud service units must be absent
+          ansible.builtin.file:
+            path: "~/.config/systemd/user/{{ item }}.service"
+            state: absent
+          loop:
+            - pod-nextcloud
+            - container-nextcloud-db
+            - container-nextcloud-app
+
+        - name: Old nextcloud pod must be absent
+          containers.podman.podman_pod:
+            name: nextcloud
+            state: absent
+
+    - name: Ensure the nextcloud pod quadlet exists
       containers.podman.podman_pod:
         name: nextcloud
-        state: created
         ports:
           - "{{ nextcloud_host_ip }}:{{ nextcloud_host_port }}:80"
+        state: quadlet
+        quadlet_filename: nextcloud
+        quadlet_file_mode: "0640"
+        quadlet_options:
+          - |
+              [Install]
+              WantedBy=default.target
+      register: nextcloud_pod_quadlet
 
-    - name: Ensure the nextcloud database container exist, stopped
+    - name: Ensure the nextcloud database quadlet exists
       containers.podman.podman_container:
-        pod: nextcloud
         name: nextcloud-db
+        pod: nextcloud.pod
         image: "docker.io/postgres:{{ nextcloud_postgres_database_tag }}"
         env:
           POSTGRES_PASSWORD: "{{ nextcloud_postgres_root_password }}"
           POSTGRES_DB: nextcloud
         volume:
           - "nextcloud-db:/var/lib/postgresql/data"
-        state: stopped
+        state: quadlet
+        quadlet_filename: nextcloud-db
+        quadlet_file_mode: "0640"
+      register: nextcloud_db_quadlet
+      no_log: true
 
-    - name: Ensure the nextcloud container exist, stopped
+    - name: Ensure the nextcloud app quadlet exists
       containers.podman.podman_container:
-        pod: nextcloud
         name: nextcloud-app
+        pod: nextcloud.pod
         image: "docker.io/nextcloud:{{ nextcloud_tag }}"
         volume:
           - "nextcloud-data:/var/www/html"
-        state: stopped
+        state: quadlet
+        quadlet_filename: nextcloud-app
+        quadlet_file_mode: "0640"
+      register: nextcloud_app_quadlet
 
-    - name: Ensure systemd unit files for nextcloud container exist
-      containers.podman.podman_generate_systemd:
-        name: nextcloud
-        dest: ~/.config/systemd/user/
-
-    - name: Ensure nextcloud pod is started and enabled on systemd
+    - name: Nextcloud pod must be started and enabled on systemd
       ansible.builtin.systemd:
-        name: pod-nextcloud
+        name: nextcloud-pod
         daemon_reload: true
-        state: started
+        state: "{{ nextcloud_pod_state }}"
         enabled: true
         scope: user
+      vars:
+        nextcloud_pod_state: >-
+          {{ 'restarted' if nextcloud_pod_quadlet.changed
+             or nextcloud_db_quadlet.changed
+             or nextcloud_app_quadlet.changed
+             else 'started' }}
 
   become: true
   become_user: nextcloud
