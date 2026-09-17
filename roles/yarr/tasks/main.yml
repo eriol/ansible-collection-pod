@@ -47,7 +47,7 @@
     - name: ensure the yarr container exist, stopped
       containers.podman.podman_container:
         name: yarr
-        image: "quay.io/eriol/yarr:{{ yarr_tag }}"
+        image: "ghcr.io/eriol/oci-yarr:{{ yarr_tag }}"
         ports:
           - "{{ yarr_host_ip }}:{{ yarr_host_port }}:7070"
         volume:
