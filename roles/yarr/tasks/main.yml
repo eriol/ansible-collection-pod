@@ -46,32 +46,6 @@
         daemon_reload: true
         scope: user
 
-    - name: Check if the old yarr container service unit exists
-      ansible.builtin.stat:
-        path: ~/.config/systemd/user/container-yarr.service
-      register: yarr_old_unit
-
-    - name: Migrate from the old generated systemd unit to quadlet
-      when: yarr_old_unit.stat.exists
-      block:
-        - name: Old yarr container service must be stopped and disabled
-          ansible.builtin.systemd:
-            name: container-yarr
-            state: stopped
-            enabled: false
-            scope: user
-          failed_when: false
-
-        - name: Old yarr container service unit must be absent
-          ansible.builtin.file:
-            path: ~/.config/systemd/user/container-yarr.service
-            state: absent
-
-        - name: Old yarr container must be absent
-          containers.podman.podman_container:
-            name: yarr
-            state: absent
-
     - name: Ensure yarr quadlet exists
       containers.podman.podman_container:
         name: yarr
