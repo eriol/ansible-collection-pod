@@ -1,21 +1,23 @@
 ---
 
-- block:
-
-    - name: install podman and dependencies
+- name: Install dependencies and setup user
+  become: "{{ yarr_become }}"
+  become_user: "{{ yarr_become_user }}"
+  block:
+    - name: Install podman and dependencies
       ansible.builtin.apt:
         name:
           - podman
-          - acl  # needed by ansible to become an unprivileged user
-          - dbus-user-session  # needed by rootless podman to talk to systemd
+          - acl # needed by ansible to become an unprivileged user
+          - dbus-user-session # needed by rootless podman to talk to systemd
         update_cache: true
         cache_valid_time: 3600
 
-    - name: ensure yarr group exits
+    - name: Ensure yarr group exits
       ansible.builtin.group:
         name: yarr
 
-    - name: ensure yarr user exists and has restrictive settings
+    - name: Ensure yarr user exists and has restrictive settings
       ansible.builtin.user:
         name: yarr
         group: yarr
@@ -23,20 +25,20 @@
         home: "{{ yarr_dir }}"
         shell: /usr/sbin/nologin
 
-    - name: check if yarr user is lingering
+    - name: Check if yarr user is lingering
       ansible.builtin.stat:
         path: "/var/lib/systemd/linger/yarr"
       register: yarr_user_lingering
 
-    - name: enable linger for yarr user
+    - name: Enable linger for yarr user
       ansible.builtin.command: "loginctl enable-linger yarr"
       when: not yarr_user_lingering.stat.exists
+      changed_when: true
 
-  become: "{{ yarr_become }}"
-  become_user: "{{ yarr_become_user }}"
-
-- block:
-
+- name: Setup yarr quadlet
+  become: true
+  become_user: yarr
+  block:
     - name: Ensure the D-Bus session bus is running for yarr
       ansible.builtin.systemd:
         name: dbus.socket
@@ -44,7 +46,33 @@
         daemon_reload: true
         scope: user
 
-    - name: ensure the yarr container exist, stopped
+    - name: Check if the old yarr container service unit exists
+      ansible.builtin.stat:
+        path: ~/.config/systemd/user/container-yarr.service
+      register: yarr_old_unit
+
+    - name: Migrate from the old generated systemd unit to quadlet
+      when: yarr_old_unit.stat.exists
+      block:
+        - name: Old yarr container service must be stopped and disabled
+          ansible.builtin.systemd:
+            name: container-yarr
+            state: stopped
+            enabled: false
+            scope: user
+          failed_when: false
+
+        - name: Old yarr container service unit must be absent
+          ansible.builtin.file:
+            path: ~/.config/systemd/user/container-yarr.service
+            state: absent
+
+        - name: Old yarr container must be absent
+          containers.podman.podman_container:
+            name: yarr
+            state: absent
+
+    - name: Ensure yarr quadlet exists
       containers.podman.podman_container:
         name: yarr
         image: "ghcr.io/eriol/oci-yarr:{{ yarr_tag }}"
@@ -52,20 +80,19 @@
           - "{{ yarr_host_ip }}:{{ yarr_host_port }}:7070"
         volume:
           - "yarr-data:/data"
-        state: stopped
+        state: quadlet
+        quadlet_filename: yarr
+        quadlet_file_mode: "0640"
+        quadlet_options:
+          - |
+              [Install]
+              WantedBy=default.target
+      register: yarr_quadlet
 
-    - name: systemd unit files for yarr container must exist
-      containers.podman.podman_generate_systemd:
-        name: yarr
-        dest: ~/.config/systemd/user/
-
-    - name: yarr container must be started and enabled on systemd
+    - name: Yarr container must be started and enabled on systemd
       ansible.builtin.systemd:
-        name: container-yarr
+        name: yarr
         daemon_reload: true
-        state: started
+        state: "{{ 'restarted' if yarr_quadlet.changed else 'started' }}"
         enabled: true
         scope: user
-
-  become: true
-  become_user: yarr
