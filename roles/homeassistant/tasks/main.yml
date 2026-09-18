@@ -4,11 +4,12 @@
   become: "{{ homeassistant_become }}"
   become_user: "{{ homeassistant_become_user }}"
   block:
-    - name: Install podman and acl
+    - name: Install podman and dependencies
       ansible.builtin.apt:
         name:
           - podman
           - acl # needed by ansible to become an unprivileged user
+          - dbus-user-session # needed by rootless podman to talk to systemd
         update_cache: true
         cache_valid_time: 3600
 
@@ -37,6 +38,13 @@
   become: true
   become_user: homeassistant
   block:
+    - name: Ensure the D-Bus session bus is running for homeassistant
+      ansible.builtin.systemd:
+        name: dbus.socket
+        state: started
+        daemon_reload: true
+        scope: user
+
     - name: Ensure homeassistant container is stopped during update
       ansible.builtin.systemd:
         name: container-homeassistant
