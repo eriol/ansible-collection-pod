@@ -44,40 +44,6 @@
         daemon_reload: true
         scope: user
 
-    - name: Check if the old nextcloud pod service unit exists
-      ansible.builtin.stat:
-        path: ~/.config/systemd/user/pod-nextcloud.service
-      register: nextcloud_old_unit
-
-    - name: Migrate from the old generated systemd units to quadlet
-      when: nextcloud_old_unit.stat.exists
-      block:
-        - name: Old nextcloud services must be stopped and disabled
-          ansible.builtin.systemd:
-            name: "{{ item }}"
-            state: stopped
-            enabled: false
-            scope: user
-          failed_when: false
-          loop:
-            - pod-nextcloud
-            - container-nextcloud-db
-            - container-nextcloud-app
-
-        - name: Old nextcloud service units must be absent
-          ansible.builtin.file:
-            path: "~/.config/systemd/user/{{ item }}.service"
-            state: absent
-          loop:
-            - pod-nextcloud
-            - container-nextcloud-db
-            - container-nextcloud-app
-
-        - name: Old nextcloud pod must be absent
-          containers.podman.podman_pod:
-            name: nextcloud
-            state: absent
-
     - name: Ensure the nextcloud pod quadlet exists
       containers.podman.podman_pod:
         name: nextcloud
