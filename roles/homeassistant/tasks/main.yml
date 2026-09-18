@@ -33,6 +33,7 @@
     - name: Enable linger for homeassistant user
       ansible.builtin.command: "loginctl enable-linger homeassistant"
       when: not homeassistant_user_lingering.stat.exists
+      changed_when: true
 
 - name: OCI stuff
   become: true
@@ -45,26 +46,33 @@
         daemon_reload: true
         scope: user
 
-    - name: Ensure homeassistant container is stopped during update
-      ansible.builtin.systemd:
-        name: container-homeassistant
-        state: stopped
-        scope: user
-      when: homeassistant_update | bool
+    - name: Check if the old homeassistant container service unit exists
+      ansible.builtin.stat:
+        path: ~/.config/systemd/user/container-homeassistant.service
+      register: homeassistant_old_unit
 
-    - name: Ensure homeassistant container is removed during update
-      containers.podman.podman_container:
-        name: homeassistant
-        state: absent
-      when: homeassistant_update | bool
+    - name: Migrate from the old generated systemd unit to quadlet
+      when: homeassistant_old_unit.stat.exists
+      block:
+        - name: Old homeassistant container service must be stopped and disabled
+          ansible.builtin.systemd:
+            name: container-homeassistant
+            state: stopped
+            enabled: false
+            scope: user
+          failed_when: false
 
-    - name: Pull homeassistant image during update
-      containers.podman.podman_image:
-        name: "ghcr.io/home-assistant/home-assistant:{{ homeassistant_tag }}"
-        force: true
-      when: homeassistant_update | bool
+        - name: Old homeassistant container service unit must be absent
+          ansible.builtin.file:
+            path: ~/.config/systemd/user/container-homeassistant.service
+            state: absent
 
-    - name: Ensure the homeassistant container exist, stopped
+        - name: Old homeassistant container must be absent
+          containers.podman.podman_container:
+            name: homeassistant
+            state: absent
+
+    - name: Ensure homeassistant quadlet exists
       containers.podman.podman_container:
         name: homeassistant
         image: "ghcr.io/home-assistant/home-assistant:{{ homeassistant_tag }}"
@@ -76,17 +84,19 @@
           TZ: "{{ homeassistant_time_zone }}"
         volume:
           - "homeassistant_data:/config"
-        state: stopped
-
-    - name: Systemd unit files for homeassistant container must exist
-      containers.podman.podman_generate_systemd:
-        name: homeassistant
-        dest: ~/.config/systemd/user/
+        state: quadlet
+        quadlet_filename: homeassistant
+        quadlet_file_mode: "0640"
+        quadlet_options:
+          - |
+              [Install]
+              WantedBy=default.target
+      register: homeassistant_quadlet
 
     - name: Homeassistant container must be started and enabled on systemd
       ansible.builtin.systemd:
-        name: container-homeassistant
+        name: homeassistant
         daemon_reload: true
-        state: started
+        state: "{{ 'restarted' if homeassistant_quadlet.changed else 'started' }}"
         enabled: true
         scope: user
