@@ -44,32 +44,6 @@
         daemon_reload: true
         scope: user
 
-    - name: Check if the old jellyfin container service unit exists
-      ansible.builtin.stat:
-        path: ~/.config/systemd/user/container-jellyfin.service
-      register: jellyfin_old_unit
-
-    - name: Migrate from the old generated systemd unit to quadlet
-      when: jellyfin_old_unit.stat.exists
-      block:
-        - name: Old jellyfin container service must be stopped and disabled
-          ansible.builtin.systemd:
-            name: container-jellyfin
-            state: stopped
-            enabled: false
-            scope: user
-          failed_when: false
-
-        - name: Old jellyfin container service unit must be absent
-          ansible.builtin.file:
-            path: ~/.config/systemd/user/container-jellyfin.service
-            state: absent
-
-        - name: Old jellyfin container must be absent
-          containers.podman.podman_container:
-            name: jellyfin
-            state: absent
-
     - name: Ensure jellyfin quadlet exists
       containers.podman.podman_container:
         name: jellyfin
