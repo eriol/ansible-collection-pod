@@ -1,9 +1,10 @@
 ---
 - block:
-    - name: Install podman and acl
+    - name: Install podman and dependencies
       ansible.builtin.apt:
         name:
           - acl # needed by ansible to become an unprivileged user
+          - dbus-user-session # needed by rootless podman to talk to systemd
           - passt
           - podman
         update_cache: true
@@ -16,7 +17,7 @@
     - name: Ensure stalwart user exists and has restrictive settings
       ansible.builtin.user:
         name: stalwart
-        groups: stalwart
+        group: stalwart
         password: "*"
         home: "{{ stalwart_dir }}"
         shell: /usr/sbin/nologin
@@ -49,6 +50,13 @@
   become_user: "{{ stalwart_become_user }}"
 
 - block:
+    - name: Ensure the D-Bus session bus is running for stalwart
+      ansible.builtin.systemd:
+        name: dbus.socket
+        state: started
+        daemon_reload: true
+        scope: user
+
     - name: Ensure the stalwart container exist, stopped
       containers.podman.podman_container:
         name: stalwart

@@ -2,11 +2,12 @@
 
 - block:
 
-    - name: Install podman and acl
+    - name: Install podman and dependencies
       ansible.builtin.apt:
         name:
           - podman
           - acl  # needed by ansible to become an unprivileged user
+          - dbus-user-session  # needed by rootless podman to talk to systemd
         update_cache: true
         cache_valid_time: 3600
 
@@ -17,7 +18,7 @@
     - name: Ensure forgejo user exists and has restrictive settings
       ansible.builtin.user:
         name: forgejo
-        groups: forgejo
+        group: forgejo
         password: "*"
         home: "{{ forgejo_dir }}"
         shell: /usr/sbin/nologin
@@ -35,6 +36,13 @@
   become_user: "{{ forgejo_become_user }}"
 
 - block:
+
+    - name: Ensure the D-Bus session bus is running for forgejo
+      ansible.builtin.systemd:
+        name: dbus.socket
+        state: started
+        daemon_reload: true
+        scope: user
 
     - name: Ensure the forgejo pod exist
       containers.podman.podman_pod:
